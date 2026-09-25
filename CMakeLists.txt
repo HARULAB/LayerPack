@@ -1,0 +1,35 @@
+cmake_minimum_required(VERSION 3.23)
+project(LayerPack LANGUAGES CXX)
+
+set(AVIUTL2_SDK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../scene_library/vendor/aviutl2_sdk"
+    CACHE PATH "AviUtl2 SDK directory containing plugin2.h")
+
+add_library(LayerPack SHARED src/main.cpp src/planner.cpp)
+target_compile_features(LayerPack PRIVATE cxx_std_20)
+target_compile_options(LayerPack PRIVATE /utf-8 /W4)
+target_compile_definitions(LayerPack PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_include_directories(LayerPack PRIVATE "${AVIUTL2_SDK_DIR}" src)
+set_target_properties(LayerPack PROPERTIES PREFIX "" SUFFIX ".aux2")
+
+enable_testing()
+add_executable(planner_test tests/planner_test.cpp src/planner.cpp)
+target_compile_features(planner_test PRIVATE cxx_std_20)
+target_compile_options(planner_test PRIVATE /W4)
+target_include_directories(planner_test PRIVATE src)
+add_test(NAME planner_test COMMAND planner_test)
+
+add_executable(host_mock_test tests/host_mock_test.cpp src/planner.cpp)
+target_compile_features(host_mock_test PRIVATE cxx_std_20)
+target_compile_options(host_mock_test PRIVATE /utf-8 /W4)
+target_compile_definitions(host_mock_test PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_include_directories(host_mock_test PRIVATE "${AVIUTL2_SDK_DIR}" src)
+target_link_libraries(host_mock_test PRIVATE user32)
+add_test(NAME host_mock_test COMMAND host_mock_test)
+
+add_library(LayerPackHostSmoke SHARED tests/host_smoke.cpp src/planner.cpp)
+target_compile_features(LayerPackHostSmoke PRIVATE cxx_std_20)
+target_compile_options(LayerPackHostSmoke PRIVATE /utf-8 /W4)
+target_compile_definitions(LayerPackHostSmoke PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_include_directories(LayerPackHostSmoke PRIVATE "${AVIUTL2_SDK_DIR}" src)
+target_link_libraries(LayerPackHostSmoke PRIVATE user32)
+set_target_properties(LayerPackHostSmoke PROPERTIES PREFIX "" SUFFIX ".aux2")
