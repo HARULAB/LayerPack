@@ -15,6 +15,8 @@ namespace {
 
 constexpr int kMaximumLayer = 10000;
 constexpr wchar_t kTitle[] = L"LayerPack";
+constexpr wchar_t kPanelClass[] = L"LayerPack.Panel";
+constexpr int kRunButton = 1001;
 constexpr wchar_t kScopeItem[] = L"対象レイヤー数";
 EDIT_HANDLE* g_edit = nullptr;
 COMMON_PLUGIN_TABLE g_plugin{L"LayerPack", L"空レイヤーを圧縮し、制御オブジェクトの対象範囲を維持します"};
@@ -236,6 +238,71 @@ void on_menu(void*) {
     MessageBoxW(parent, request.error.c_str(), kTitle, MB_OK | MB_ICONWARNING);
 }
 
+LRESULT CALLBACK panel_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+  switch (message) {
+  case WM_CREATE:
+    CreateWindowExW(0, L"BUTTON", L"空レイヤーを圧縮", WS_CHILD | WS_VISIBLE | WS_TABSTOP |
+                        BS_OWNERDRAW,
+                    0, 0, 0, 0, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(kRunButton)),
+                    GetModuleHandleW(nullptr), nullptr);
+    return 0;
+  case WM_ERASEBKGND: {
+    RECT client{};
+    GetClientRect(window, &client);
+    HBRUSH background = CreateSolidBrush(RGB(38, 38, 38));
+    FillRect(reinterpret_cast<HDC>(wparam), &client, background);
+    DeleteObject(background);
+    return 1;
+  }
+  case WM_PAINT: {
+    PAINTSTRUCT paint{};
+    HDC dc = BeginPaint(window, &paint);
+    HBRUSH background = CreateSolidBrush(RGB(38, 38, 38));
+    FillRect(dc, &paint.rcPaint, background);
+    DeleteObject(background);
+    EndPaint(window, &paint);
+    return 0;
+  }
+  case WM_DRAWITEM: {
+    auto* item = reinterpret_cast<DRAWITEMSTRUCT*>(lparam);
+    if (!item || item->CtlID != kRunButton) break;
+    HBRUSH background = CreateSolidBrush((item->itemState & ODS_SELECTED) ?
+                                            RGB(82, 82, 82) : RGB(64, 64, 64));
+    FillRect(item->hDC, &item->rcItem, background);
+    DeleteObject(background);
+    HBRUSH border = CreateSolidBrush(RGB(105, 105, 105));
+    FrameRect(item->hDC, &item->rcItem, border);
+    DeleteObject(border);
+    SetBkMode(item->hDC, TRANSPARENT);
+    SetTextColor(item->hDC, RGB(240, 240, 240));
+    DrawTextW(item->hDC, L"空レイヤーを圧縮", -1, &item->rcItem,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    if (item->itemState & ODS_FOCUS) DrawFocusRect(item->hDC, &item->rcItem);
+    return TRUE;
+  }
+  case WM_SIZE: {
+    HWND button = GetDlgItem(window, kRunButton);
+    if (button) {
+      const UINT dpi = GetDpiForWindow(window);
+      const int margin = MulDiv(8, dpi, 96);
+      const int height = MulDiv(32, dpi, 96);
+      RECT client{};
+      GetClientRect(window, &client);
+      MoveWindow(button, margin, margin,
+                 std::max(0, static_cast<int>(client.right) - 2 * margin), height, TRUE);
+    }
+    return 0;
+  }
+  case WM_COMMAND:
+    if (LOWORD(wparam) == kRunButton && HIWORD(wparam) == BN_CLICKED) {
+      on_menu(nullptr);
+      return 0;
+    }
+    break;
+  }
+  return DefWindowProcW(window, message, wparam, lparam);
+}
+
 } // namespace
 
 extern "C" __declspec(dllexport) DWORD RequiredVersion() { return 2011000; }
@@ -243,4 +310,16 @@ extern "C" __declspec(dllexport) COMMON_PLUGIN_TABLE* GetCommonPluginTable() { r
 extern "C" __declspec(dllexport) void RegisterPlugin(HOST_APP_TABLE* host) {
   g_edit = host->create_edit_handle();
   host->register_edit_menu_param(L"LayerPack\\空レイヤーを圧縮", nullptr, on_menu);
+  WNDCLASSEXW klass{};
+  klass.cbSize = sizeof(klass);
+  klass.lpfnWndProc = panel_proc;
+  klass.hInstance = GetModuleHandleW(nullptr);
+  klass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+  klass.lpszClassName = kPanelClass;
+  if (RegisterClassExW(&klass)) {
+    HWND panel = CreateWindowExW(0, kPanelClass, kTitle, WS_POPUP | WS_CLIPCHILDREN, CW_USEDEFAULT,
+                                 CW_USEDEFAULT, 260, 60, nullptr, nullptr,
+                                 GetModuleHandleW(nullptr), nullptr);
+    if (panel) host->register_window_client(kTitle, panel);
+  }
 }

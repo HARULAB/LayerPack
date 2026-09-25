@@ -20,6 +20,7 @@ static std::string item_buffer;
 static std::string alias_buffer;
 static EDIT_HANDLE mock_handle{};
 static EDIT_SECTION mock_section{};
+static HWND registered_panel{};
 
 static void get_info(EDIT_INFO* info, int) {
   *info = {};
@@ -98,4 +99,44 @@ int main() {
   assert(objects[0].layer == 0 && objects[0].target_count == 2);
   assert(objects[1].layer == 1 && objects[1].target_count == 1);
   assert(objects[2].layer == 2 && objects[3].layer == 3);
+
+  // The panel must expose a real, clickable button. With no edit handle,
+  // clicking safely takes the same no-op path as the menu command.
+  HOST_APP_TABLE host{};
+  host.create_edit_handle = []() -> EDIT_HANDLE* { return &mock_handle; };
+  host.register_edit_menu_param = [](LPCWSTR, void*, void (*)(void*)) {};
+  host.register_window_client = [](LPCWSTR name, HWND window) {
+    assert(std::wcscmp(name, kTitle) == 0);
+    registered_panel = window;
+  };
+  RegisterPlugin(&host);
+  assert(registered_panel);
+  SendMessageW(registered_panel, WM_SIZE, 0, MAKELPARAM(260, 60));
+  HWND button = GetDlgItem(registered_panel, kRunButton);
+  assert(button);
+  RECT bounds{};
+  GetWindowRect(button, &bounds);
+  assert(bounds.right > bounds.left && bounds.bottom > bounds.top);
+  HDC screen = GetDC(nullptr);
+  HDC memory = CreateCompatibleDC(screen);
+  HBITMAP bitmap = CreateCompatibleBitmap(screen, 260, 60);
+  HGDIOBJ previous = SelectObject(memory, bitmap);
+  SendMessageW(registered_panel, WM_ERASEBKGND, reinterpret_cast<WPARAM>(memory), 0);
+  assert(GetPixel(memory, 4, 4) == RGB(38, 38, 38));
+  DRAWITEMSTRUCT draw{};
+  draw.CtlType = ODT_BUTTON;
+  draw.CtlID = kRunButton;
+  draw.hwndItem = button;
+  draw.hDC = memory;
+  draw.rcItem = {0, 0, 260, 32};
+  assert(SendMessageW(registered_panel, WM_DRAWITEM, kRunButton,
+                      reinterpret_cast<LPARAM>(&draw)) == TRUE);
+  assert(GetPixel(memory, 10, 10) == RGB(64, 64, 64));
+  SelectObject(memory, previous);
+  DeleteObject(bitmap);
+  DeleteDC(memory);
+  ReleaseDC(nullptr, screen);
+  g_edit = nullptr;
+  SendMessageW(button, BM_CLICK, 0, 0);
+  DestroyWindow(registered_panel);
 }
