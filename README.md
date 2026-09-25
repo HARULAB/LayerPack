@@ -29,10 +29,10 @@ AviUtl2 の現在のシーンで、空のレイヤーを飛ばしてオブジェ
 
 ## ビルド
 
-MSVC、CMake、AviUtl2 SDK が必要です。既定では同じ開発フォルダ内の SceneShelf に同梱された SDK ヘッダーを参照します。他の SDK を使う場合は `-DAVIUTL2_SDK_DIR=...` で指定します。
+MSVC、CMake、AviUtl2 SDK が必要です。SDK はこのリポジトリには同梱していません。[AviUtl2 SDK ミラー](https://github.com/aviutl2/aviutl2_sdk_mirror)などから入手し、`plugin2.h` があるフォルダを `AVIUTL2_SDK_DIR` に指定してください。開発フォルダ内に SceneShelf の SDK がある場合のみ、そのパスを既定値として使います。
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+cmake -S . -B build -G "Visual Studio 18 2026" -A x64 -DAVIUTL2_SDK_DIR="C:\path\to\sdk"
 cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
